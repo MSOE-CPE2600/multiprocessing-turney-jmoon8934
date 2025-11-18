@@ -6,9 +6,13 @@
 //  Converted to use jpg instead of BMP and other minor changes
 //  
 ///
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <wait.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
 #include "jpegrw.h"
 
 // local routines
@@ -21,11 +25,13 @@ static void show_help();
 
 int main( int argc, char *argv[] )
 {
+
 	char c;
 
 	// These are the default configuration values used
 	// if no command line arguments are given.
-	const char *outfile = "mandel.jpg";
+	char *outfile = "mandel.jpg";
+
 	double xcenter = 0;
 	double ycenter = 0;
 	double xscale = 4;
@@ -33,11 +39,20 @@ int main( int argc, char *argv[] )
 	int    image_width = 1000;
 	int    image_height = 1000;
 	int    max = 1000;
+	int    num_imag = 1;
+	int    active_proc = 0; //calc later
+
+	//mmap for our output file saving. Wish for it to be the size of our outfile parameter
+	char *output = mmap(NULL, (strlen(outfile)+1), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	//mmap for max proc, default value of 1.
+	int *max_proc = mmap(NULL, 2*sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	max_proc[0] = 1;
+
 
 	// For each command line argument given,
 	// override the appropriate configuration value.
 
-	while((c = getopt(argc,argv,"x:y:s:W:H:m:o:h"))!=-1) {
+	while((c = getopt(argc,argv,"x:y:s:W:H:m:o:h:n:p:"))!=-1) {
 		switch(c) 
 		{
 			case 'x':
@@ -65,30 +80,74 @@ int main( int argc, char *argv[] )
 				show_help();
 				exit(1);
 				break;
+			case 'n':
+				num_imag = atoi(optarg);
+				break;
+			case 'p':
+
+				max_proc[0] = atoi(optarg);
+				break;
 		}
 	}
 
+	//copy outfile parameter into outfile mmap'd output for image proccessing 
+	strcpy(output, outfile);
+
 	// Calculate y scale based on x scale (settable) and image sizes in X and Y (settable)
-	yscale = xscale / image_width * image_height;
+	for(int i = 0; i < num_imag; i++)
+	{
+		if(active_proc >= max_proc[0])
+        {
+            //if at max capacity, wait for it to finish up to decriment and go agian
+            //manages active processors to always be max processors or less.
+            //possible for it to complete faster than it fills up
+            wait(NULL); //wait(NULL) waits for ANY child to finish.
+            active_proc--;
+        }
+		int pid = fork();
+		if(pid == 0)
+		{
+			//Modify out-file saving
+			//Declare temp str. array with length of output + 1 for \0, and then num_imag%10+1 for # of image deliminator. 
+			//1-9 images = +1, 10-99 = +2, etc
+			char outfile_ittr[strlen(output)+1+num_imag%10+1] = {};
+			//Append up to the file extention into outfile_ittr
+			strncat(outfile_ittr, output, (strlen(output)-4));
+			//Temp itter string to process the current itteration
+			//Length of this is num_images%10+1 (for deliminator) + strlen(".jpg") +1 for null temr
+			char itter[num_imag%10+1+strlen(".jpg")+1];
+			sprintf(itter, "%d.jpg", (i+1));
+			strcat(outfile_ittr, itter);
 
-	// Display the configuration of the image.
-	printf("mandel: x=%lf y=%lf xscale=%lf yscale=%1f max=%d outfile=%s\n",xcenter,ycenter,xscale,yscale,max,outfile);
+			yscale = xscale / image_width * image_height;
 
-	// Create a raw image of the appropriate size.
-	imgRawImage* img = initRawImage(image_width,image_height);
+			// Display the configuration of the image.
+			printf("mandel: x=%lf y=%lf xscale=%lf yscale=%1f max=%d outfile=%s\n",xcenter,ycenter,xscale,yscale,max,outfile_ittr);
 
-	// Fill it with a black
-	setImageCOLOR(img,0);
+			// Create a raw image of the appropriate size.
+			imgRawImage* img = initRawImage(image_width,image_height);
 
-	// Compute the Mandelbrot image
-	compute_image(img,xcenter-xscale/2,xcenter+xscale/2,ycenter-yscale/2,ycenter+yscale/2,max);
+			// Fill it with a black
+			setImageCOLOR(img,0);
 
-	// Save the image in the stated file.
-	storeJpegImageFile(img,outfile);
+			// Compute the Mandelbrot image
+			compute_image(img,xcenter-xscale/2,xcenter+xscale/2,ycenter-yscale/2,ycenter+yscale/2,max);
 
-	// free the mallocs
-	freeRawImage(img);
+			// Save the image in the stated file.
+			storeJpegImageFile(img,outfile_ittr);
 
+			// free the mallocs
+			freeRawImage(img);
+			exit(0);
+		}
+		else if(pid > 0)
+		{
+			active_proc++;
+		}
+	}
+	//munmaps for shared memory
+	munmap(output, (strlen(outfile)+1));
+	munmap(max_proc, sizeof(int));
 	return 0;
 }
 
@@ -178,6 +237,8 @@ void show_help()
 	printf("-H <pixels> Height of the image in pixels. (default=1000)\n");
 	printf("-o <file>   Set output file. (default=mandel.bmp)\n");
 	printf("-h          Show this help text.\n");
+	printf("-n          Set the number of images to be generated (default = 1)");
+	printf("-p          Set the number of processors to be used (default = 1)");
 	printf("\nSome examples are:\n");
 	printf("mandel -x -0.5 -y -0.5 -s 0.2\n");
 	printf("mandel -x -.38 -y -.665 -s .05 -m 100\n");
