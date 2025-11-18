@@ -7,6 +7,7 @@
 //  
 ///
 #include <string.h>
+#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -32,8 +33,8 @@ int main( int argc, char *argv[] )
 	// if no command line arguments are given.
 	char *outfile = "mandel.jpg";
 
-	double xcenter = 0;
-	double ycenter = 0;
+	double xcenter = -1.4012874603271483;
+	double ycenter = -0.0000286102294921875;
 	double xscale = 4;
 	double yscale = 0; // calc later
 	int    image_width = 1000;
@@ -118,7 +119,9 @@ int main( int argc, char *argv[] )
 			char itter[num_imag%10+1+strlen(".jpg")+1];
 			sprintf(itter, "%d.jpg", (i+1));
 			strcat(outfile_ittr, itter);
-
+			
+			//adjust scale for each iteration.
+			xscale = xscale*pow(0.75, num_imag-i);
 			yscale = xscale / image_width * image_height;
 
 			// Display the configuration of the image.
