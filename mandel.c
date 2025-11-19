@@ -1,11 +1,13 @@
-/// 
-//  mandel.c
-//  Based on example code found here:
-//  https://users.cs.fiu.edu/~cpoellab/teaching/cop4610_fall22/project3.html
-//
-//  Converted to use jpg instead of BMP and other minor changes
-//  
-///
+/* 
+* Based on example code found here:
+* https://users.cs.fiu.edu/~cpoellab/teaching/cop4610_fall22/project3.html
+*
+* Converted to use jpg instead of BMP and other minor changes
+*  
+* Filename: mandel.c
+* Modified By: Jeric Moon
+* Date: 11/19/2025
+*/
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
