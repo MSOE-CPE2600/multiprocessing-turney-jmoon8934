@@ -14,8 +14,10 @@
 - 10 processors: 8.7568	s
 - 20 processors: 7.2932 s
 - Two graphs were constructed, one scatter plot of the averages with a power curve function, and one bar graph detailing each trial.
+
 ![Mandel Average Graph](Mandel_Averages_Graph.png)
 ![Mandel Bar Graph](Mandel_Bar_Graph.png)
+
 ## Results
 - It's worth noting that the power curve function is only accurate for low process (n < 50) counts, as it predicts that with enough processes that the time for completion would drop to 0 seconds.
 - This is not the case, as there is always going to be some inherent overhead required for running more processes, in part capped on the limited number of processors that a device has.
