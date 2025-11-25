@@ -18,12 +18,12 @@
 #include <sys/mman.h>
 #include <pthread.h>
 #include "jpegrw.h"
+#include "mandel_struct.h"
 
 // local routines
 static int iteration_to_color( int i, int max );
 static int iterations_at_point( double x, double y, int max );
-static void compute_image( imgRawImage *img, double xmin, double xmax,
-									double ymin, double ymax, int max, int num_threads );
+static void *compute_image(void *arg);
 static void show_help();
 
 
@@ -51,8 +51,11 @@ int main( int argc, char *argv[] )
 	//mmap for max proc, default value of 1.
 	int *max_proc = mmap(NULL, 2*sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 	max_proc[0] = 1;
-	int *num_threads = mmap(NULL, sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-	num_threads[0] = 2;
+	//default num threads
+	int *max_threads = mmap(NULL, sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	*max_threads = 2;
+	//mandel_info struct
+	mandel_info minfo;
 
 
 	// For each command line argument given,
@@ -94,11 +97,11 @@ int main( int argc, char *argv[] )
 				max_proc[0] = atoi(optarg);
 				break;
 			case 't':
-				num_threads[0] = atoi(optarg);
-				if(num_threads[0] < 1 || num_threads[0] > 20)
+				*max_threads = atoi(optarg);
+				if(*max_threads < 1 || *max_threads > 20)
 				{
-					printf("Invalid number of threads (%d) detected! Defaulting to 2 threads.\n", num_threads[0]);
-					num_threads[0] = 2;
+					printf("Invalid number of threads (%d) detected! Defaulting to 2 threads.\n", *max_threads);
+					*max_threads = 2;
 				}
 
 		}
@@ -145,19 +148,32 @@ int main( int argc, char *argv[] )
 
 			// Fill it with a black
 			setImageCOLOR(img,0);
+			pthread_t threads[*max_threads];
+			pthread_mutex_t mymutex;
+			pthread_mutex_init(&mymutex, NULL);
+		
 
-				//declare threads and mutex
-			// pthread_t threads[num_threads[0]];
-			// pthread_mutex_t mutex;
-			// pthread_mutex_init(&mutex, NULL);
-			// // Compute the Mandelbrot image
-			for(int j = 0; j < num_threads[0]; j++)
+			minfo.img = img;
+			minfo.xmin = xcenter-xscale/2;
+			minfo.xmax = xcenter+xscale/2;
+			minfo.ymin = ycenter-yscale/2;
+			minfo.ymax = ycenter+yscale/2;
+			minfo.max = max;
+			minfo.max_threads = *max_threads;
+			minfo.num_threads = 0;
+			minfo.mutex = &mymutex;
+
+
+			//Run threads dependant on thread args
+			for(int j = 0; j < *max_threads; j++)
 			{
-				//void compute_image(imgRawImage* img, double xmin, double xmax, double ymin, double ymax, int max)
-
+				pthread_create(&threads[j], NULL, compute_image, &minfo);
 			}
-			compute_image(img,xcenter-xscale/2,xcenter+xscale/2,ycenter-yscale/2,ycenter+yscale/2,max, num_threads[0]);
-
+			for(int j = 0; j < *max_threads; j++)
+			{
+				pthread_join(threads[j], NULL);
+			}
+			pthread_mutex_destroy(minfo.mutex);
 
 
 
@@ -213,32 +229,50 @@ Compute an entire Mandelbrot image, writing each point to the given bitmap.
 Scale the image to the range (xmin-xmax,ymin-ymax), limiting iterations to "max"
 */
 
-void compute_image(imgRawImage* img, double xmin, double xmax, double ymin, double ymax, int max, int num_threads)
+void *compute_image(void *arg)
 {
+	//cast arg back into mandel_info
+	mandel_info *minfo = (mandel_info *)arg;
+
+	//inherit offset = thread count
+	int active_thread = -1;
+	pthread_mutex_lock(minfo->mutex);
+	if(minfo->num_threads < minfo->max_threads)
+	{
+		active_thread = minfo->num_threads;
+		minfo->num_threads++;
+	}
+	pthread_mutex_unlock(minfo->mutex);
+
+	//if offset hasn't changed, already at max threads
+	if(active_thread == -1)
+	{
+		return NULL;
+	}
+
 	int i,j;
 
-	int width = img->width;
-	int height = img->height;
+	int width = minfo->img->width;
+	int height = minfo->img->height;
 
 	// For every pixel in the image...
-	for(int k = 0; k < num_threads; k++)
-	{
-		for(j=k*height/num_threads;j<(k+1)*height/num_threads;j++) {
+	//only opperate in bounds of active thread
+	for(j=active_thread*height/minfo->max_threads;j<(active_thread+1)*height/minfo->max_threads;j++) {
 
-			for(i=0;i<width;i++) {
+		for(i=0;i<width;i++) {
 
-				// Determine the point in x,y space for that pixel.
-				double x = xmin + i*(xmax-xmin)/width;
-				double y = ymin + j*(ymax-ymin)/height;
+			// Determine the point in x,y space for that pixel.
+			double x = minfo->xmin + i*(minfo->xmax-minfo->xmin)/width;
+			double y = minfo->ymin + j*(minfo->ymax-minfo->ymin)/height;
 
-				// Compute the iterations at that point.
-				int iters = iterations_at_point(x,y,max);
+			// Compute the iterations at that point.
+			int iters = iterations_at_point(x,y,minfo->max);
 
-				// Set the pixel in the bitmap.
-				setPixelCOLOR(img,i,j,iteration_to_color(iters,max));
-			}
+			// Set the pixel in the bitmap.
+			setPixelCOLOR(minfo->img,i,j,iteration_to_color(iters,minfo->max));
 		}
 	}
+	return NULL;
 }
 
 
