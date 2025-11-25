@@ -301,9 +301,9 @@ void show_help()
 	printf("-H <pixels> Height of the image in pixels. (default=1000)\n");
 	printf("-o <file>   Set output file. (default=mandel.bmp)\n");
 	printf("-h          Show this help text.\n");
-	printf("-n          Set the number of images to be generated (default = 1)");
-	printf("-p          Set the number of processors to be used (default = 1)");
-	printf("-t          Set the number of threads to be used (default = 2)");
+	printf("-n          Set the number of images to be generated (default = 1)\n");
+	printf("-p          Set the number of processors to be used (default = 1)\n");
+	printf("-t          Set the number of threads to be used (default = 2)\n");
 	printf("\nSome examples are:\n");
 	printf("mandel -x -0.5 -y -0.5 -s 0.2\n");
 	printf("mandel -x -.38 -y -.665 -s .05 -m 100\n");
