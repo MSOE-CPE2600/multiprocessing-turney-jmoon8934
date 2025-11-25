@@ -1,26 +1,27 @@
 # System Programming Lab 11 Multiprocessing
 ## Implementation
-- Modified mandel.c to utilize variable processing & forking.
-- Added two new command line arguments utilizing get opt. n -> # of images, p -> # of max processes.
-- Utilized shared memory to have variable out file location and max processes persist between children.
-- All the image generation is done exclusively by children, parent only maintains active process count.
+- Based off lab 11 implementation.
+- Created new mandel_info struct to hold all relevant image creation data, in addition to a mutex, int max_threads, and int active_threads
+- Added new argument -t, for number of threads. Limit between 1 & 2, defaults to 2 if no argument or invalid argument is provided.
+- Adjusted image creation method signature to void* compute_image(void *args) to enable usage in threads.
+- Process declares the mandel_info struct, waits for user arguments to be provided, then fills in all the relavant data.
+- mandel_info struct is given a reference to a mutex, and sets active_threads to 0.
+- Iteratively creates max_threads number of threads, letting them run, before joining them all together in another for loop.
+- In each thread, mutex locks the "active_threads", to which each thread incriments the value until it's equal to max_threads, individually un-mutexing after each adjustment.
+- Each thread handles an individual horizontal segment of the image, segments are split evenly based off max_threads.
 ## Data Analysis & Graphs
-- Tests were run to generate 50 images, each with a different number of processors, aimed at seeing the change in time for completion.
-- For each number of processors used (1, 2, 5, 10, 20), 5 different trials were run.
-- The average completion time is as follows:
-- 1 processor: 62.833 s
-- 2 processors: 33.4136 s
-- 5 processors: 16.1666	s
-- 10 processors: 8.7568	s
-- 20 processors: 7.2932 s
-- Two graphs were constructed, one scatter plot of the averages with a power curve function, and one bar graph detailing each trial.
+- Tests were run to generate 50 images under the same conditions (laptop plugged in, all non-nessecary programs closed) each with a different number of processors and thread count.
+- Ran 25 tests, with all combinations between 1, 2, 5, 10, 20 threads and processors.
+- Based off the table, multiprocessing appeared to impact runtime more positively than threadding.
+- This is best shown by looking at the thread = 1 and thread = 2 collumns of the table, compared to the process = 1 and process = 2 collumns.
+- An increase in processes has a greater effect on the decrease in time taken than threading.
+- This is because the kernel is more able to affectively manage and best allocate resources with multiprocessing, as multiprocessing does not nessecarily indicate multiprocessors in use.
+- The OS is able to better optimize multiprocessing than multithreading.
 
-![Mandel Average Graph](Mandel_Averages_Graph.png)
-![Mandel Bar Graph](Mandel_Bar_Graph.png)
+![Mandel Process & Thread count table](Lab_12_Table.png)
+
 
 ## Results
-- It's worth noting that the power curve function is only accurate for low process (n < 50) counts, as it predicts that with enough processes that the time for completion would drop to 0 seconds.
-- This is not the case, as there is always going to be some inherent overhead required for running more processes, in part capped on the limited number of processors that a device has.
-- The length it took to run the program tends to scale inversely with the number of processors, but only up to a limit around 10 processes for 50 images.
-- This is again, due to the inherent overhead required with running the program and the number of processors.
-- This behavior is most clearly seen with the time taken to run 50 images with 1 processor vs 2, where the time is nearly cut in half.
+- There was in fact an optimal sweet spot, around when the quantity processes * threads ≈ 40, with a very notable bias towards more processes over more threads.
+- Interesting, the combinations of 5 processes * 10 threads or 10 processes * 5 threads preformed worse than 20 processes & 1 or 2 threads.
+- My best guess is that this has to deal with the better potential for optimization with multiprocessing over multi-threading.
